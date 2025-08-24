@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCQ Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+        }
+        .container {
+            width: 50%;
+            margin: 50px auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .options {
+            margin: 20px 0;
+        }
+        .option {
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .option.selected {
+            background-color: #d1e7dd;
+        }
+        .option.correct {
+            background-color: #28a745;
+        }
+        .option.incorrect {
+            background-color: #dc3545;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #submit-btn {
+            background-color: #28a745;
+        }
+        #submit-btn:hover {
+            background-color: #218838;
+        }
+        #submit-btn {
+        background-color: #28a745;
+        margin: 20px auto;
+        display: block; /* Centering the button */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCQ Game</h1>
+        <div id="question-container"></div>
+        <div class="controls">
+            <button id="prev-btn" onclick="navigate(-1)">Previous</button>
+            <button id="next-btn" onclick="navigate(1)">Next</button>
+        </div>
+        <button id="submit-btn" onclick="submitAnswer()">Submit Answer</button>
+    </div>
+
+    <script>
+        let currentQuestion = 0;
+        let score = 0;
+        const totalQuestions = {{ total }};
+        let answers = [];
+    
+        // Function to load the question and options
+        function fetchQuestion(index) {
+            fetch(`/get-question/${index}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+    
+                    const questionContainer = document.getElementById('question-container');
+                    questionContainer.innerHTML = `
+                        <h2>${data.question}</h2>
+                        <div class="options">
+                            <div class="option" onclick="selectOption('A', ${index})">A) ${data.options.A}</div>
+                            <div class="option" onclick="selectOption('B', ${index})">B) ${data.options.B}</div>
+                            <div class="option" onclick="selectOption('C', ${index})">C) ${data.options.C}</div>
+                            <div class="option" onclick="selectOption('D', ${index})">D) ${data.options.D}</div>
+                        </div>
+                        <p id="feedback" style="margin-top: 10px; color: red; display: none;"></p>
+                    `;
+                });
+        }
+    
+        // Function to handle option selection
+        function selectOption(option, index) {
+            const options = document.querySelectorAll('.option');
+            options.forEach(opt => opt.classList.remove('selected'));
+            const selectedOption = document.querySelector(`.option:nth-child(${['A', 'B', 'C', 'D'].indexOf(option) + 1})`);
+            selectedOption.classList.add('selected');
+    
+            answers[index] = option;
+        }
+    
+        // Function to navigate between questions
+        function navigate(direction) {
+            currentQuestion += direction;
+            if (currentQuestion < 0) currentQuestion = 0;
+            if (currentQuestion >= totalQuestions) currentQuestion = totalQuestions - 1;
+            fetchQuestion(currentQuestion);
+        }
+    
+        // Submit the answer and check if it's correct
+        function submitAnswer() {
+            const currentIndex = currentQuestion;
+            const selectedOption = answers[currentIndex];
+            fetch(`/get-question/${currentIndex}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!selectedOption) {
+                        alert("Please select an option first!");
+                        return;
+                    }
+    
+                    const correctAnswer = data.correct;
+                    const options = document.querySelectorAll('.option');
+                    options.forEach(opt => opt.classList.remove('correct', 'incorrect'));
+    
+                    const selectedDiv = document.querySelector(`.option:nth-child(${['A', 'B', 'C', 'D'].indexOf(selectedOption) + 1})`);
+                    const correctDiv = document.querySelector(`.option:nth-child(${['A', 'B', 'C', 'D'].indexOf(correctAnswer) + 1})`);
+    
+                    if (selectedOption === correctAnswer) {
+                        selectedDiv.classList.add('correct');
+                        score++;
+                    } else {
+                        selectedDiv.classList.add('incorrect');
+                        correctDiv.classList.add('correct');
+                        document.getElementById('feedback').textContent = `Correct answer: ${correctAnswer}`;
+                        document.getElementById('feedback').style.display = 'block';
+                    }
+    
+                    if (currentIndex < totalQuestions - 1) {
+                        document.getElementById('next-btn').disabled = false;
+                    } else {
+                        document.getElementById('submit-btn').textContent = "Finish Game";
+                        document.getElementById('submit-btn').setAttribute('onclick', 'endGame()');
+                    }
+                });
+        }
+    
+        // End the game and show the final score
+        // function endGame() {
+        //     alert(`Game Over! Your final score is: ${score} out of ${totalQuestions}`);
+        //     window.location.href = '/download-pdf';
+        // }
+
+        function endGame() {
+    fetch('/submit-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score: score })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message === 'Score saved successfully') {
+            window.location.href = '/results';
+        }
+    });
+}
+
+    
+        // Load the first question on page load
+        window.onload = () => fetchQuestion(0);
+    </script>
+    
+</body>
+</html>
